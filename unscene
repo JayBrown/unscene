@@ -1,20 +1,53 @@
 #!/bin/zsh
 # shellcheck shell=bash
 
-# unscene v0.1
+# unscene v0.2
 
 export LANG=en_US.UTF-8
 export SYSTEM_VERSION_COMPAT=0
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/opt/local/bin:/opt/local/sbin:/opt/homebrew/bin:/opt/homebrew/sbin
 
+_beep () {
+	osascript -e 'beep' &>/dev/null
+}
+
+_notify () {
+	osascript -e "display notification \"$2\" with title \"unScene [\" & \"$account\" & \"]\" subtitle \"$1\""
+}
+
+_success () {
+	afplay "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/burn complete.aif" &>/dev/null
+}
+
+case $(ps -o stat= -p $$) in
+	*+*) background=false ;;
+	*) background=true ;;
+esac
+
+### background=true # uncomment for FQA
+
+$background && account=$(id -u)
+
 if ! command -v unzip &>/dev/null ; then
-	echo "ERROR: unzip not found" >&2
-	exit 1
+	if $background ; then
+		_beep &
+		_notify "❌ Error" "unzip not found"
+		exit
+	else
+		echo "ERROR: unzip not found" >&2
+		exit 1
+	fi
 fi
 
 if ! [[ $* ]] ; then
-	echo "ERROR: no input" >&2
-	exit 1
+	if $background ; then
+		_beep &
+		_notify "⚠️ Error" "No input"
+		exit
+	else
+		echo "ERROR: no input" >&2
+		exit 1
+	fi
 fi
 
 filepath="$1"
@@ -22,38 +55,74 @@ if [[ -f "$filepath" ]] ; then
 	if echo "$filepath" | grep -q "\.zip$" ; then
 		filepath=$(dirname "$filepath")
 	else
-		echo "ERROR: not a .zip file" >&2
-		exit 1
+		if $background ; then
+			_beep &
+			_notify "⚠️ Error" "Not a .zip file"
+			exit
+		else
+			echo "ERROR: not a .zip file" >&2
+			exit 1
+		fi
 	fi
 else
 	if ! [[ -d "$filepath" ]] ; then
-		echo "ERROR: incompatible file type" >&2
-		exit 1
+		if $background ; then
+			_beep &
+			_notify "⚠️ Error" "Incompatible filetype"
+			exit
+		else
+			echo "ERROR: incompatible file type" >&2
+			exit 1
+		fi
 	fi
 fi
 
 zipfiles=$(find "$filepath" -type f -mindepth 1 -maxdepth 1 -name '*.zip' 2>/dev/null)
 if ! [[ $zipfiles ]] ; then
-	echo "ERROR: no zip files in directory" >&2
-	exit 1
+	if $background ; then
+		_beep &
+		_notify "⚠️ Error" "No zip files in folder"
+		exit
+	else
+		echo "ERROR: no zip files in directory" >&2
+		exit 1
+	fi
 fi
 
 echo "Target: $filepath"
-
+error=false
 while read -r zipfile
 do
 	zipname=$(basename "$zipfile")
 	if ! unzip -qq -o "$zipfile" -d "$filepath" &>/dev/null ; then
-		echo "ERROR: $zipname" >&2
+		if $background ; then
+			_beep &
+			_notify "⚠️ Error" "$zipname"
+		else
+			echo "ERROR: $zipname" >&2
+		fi
+		error=true
 	else
-		echo "Success: $zipname"
+		! $background && echo "Success: $zipname"
 	fi
 done < <(echo "$zipfiles")
 
 rm -rf "$filepath/__MACOSX/" 2>/dev/null
 
+if $error ; then
+	if $background ; then
+		exit
+	else
+		exit 1
+	fi
+fi
+
 if ! command -v unrar &>/dev/null ; then
-	echo "Done"
+	if $background ; then
+		_success &
+	else
+		echo "Done"
+	fi
 	exit
 fi
 
@@ -63,31 +132,63 @@ if [[ $rfn -eq 0 ]] ; then
 	rarfile=$(find "$filepath" -type f -mindepth 1 -maxdepth 1 -name '*.part1.rar' 2>/dev/null)
 	rfn=$(echo "$rarfile" | wc -l)
 	if [[ $rfn -eq 0 ]] ; then
-		echo "Done"
+		if $background ; then
+			_success &
+		else
+			echo "Done"
+		fi
 		exit
 	elif [[ $rfn -gt 1 ]]  ; then
-		echo "ECHO: too many .rar files" >&2
-		exit 1
+		if $background ; then
+			_beep &
+			_notify "⚠️ Error" "Too many .rar files"
+			exit
+		else
+			echo "ECHO: too many .rar files" >&2
+			exit 1
+		fi
 	fi
 elif [[ $rfn -gt 1 ]] ; then
 	rarfile=$(find "$filepath" -type f -mindepth 1 -maxdepth 1 -name '*.part1.rar' 2>/dev/null)
 	rfn=$(echo "$rarfile" | wc -l)
 	if [[ $rfn -eq 0 ]] ; then
-		echo "ERROR: too many .rar files" >&2
-		exit 1
+		if $background ; then
+			_beep &
+			_notify "⚠️ Error" "Too many .rar files"
+			exit
+		else
+			echo "ERROR: too many .rar files" >&2
+			exit 1
+		fi
 	elif [[ $rfn -gt 1 ]] ; then
-		echo "ERROR: too many .rar files" >&2
-		exit 1
+		if $background ; then
+			_beep &
+			_notify "⚠️ Error" "Too many .rar files"
+			exit
+		else
+			echo "ERROR: too many .rar files" >&2
+			exit 1
+		fi
 	fi
 fi
 
 rarname=$(basename "$rarfile")
 if ! unrar x -o+ "$rarfile" "$filepath" -idq &>/dev/null ; then
-	echo "ERROR: $rarname" >&2
-	exit 1
+	if $background ; then
+		_beep &
+		_notify "⚠️ Error" "$rarname"
+		exit
+	else
+		echo "ERROR: $rarname" >&2
+		exit 1
+	fi
 else
-	echo "Succes: $rarname"
+	! $background && echo "Success: $rarname"
 fi
 
-echo "Done"
+if $background ; then
+	_success &
+else
+	echo "Done"
+fi
 exit
