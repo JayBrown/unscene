@@ -1,0 +1,93 @@
+#!/bin/zsh
+# shellcheck shell=bash
+
+# unscene v0.1
+
+export LANG=en_US.UTF-8
+export SYSTEM_VERSION_COMPAT=0
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/opt/local/bin:/opt/local/sbin:/opt/homebrew/bin:/opt/homebrew/sbin
+
+if ! command -v unzip &>/dev/null ; then
+	echo "ERROR: unzip not found" >&2
+	exit 1
+fi
+
+if ! [[ $* ]] ; then
+	echo "ERROR: no input" >&2
+	exit 1
+fi
+
+filepath="$1"
+if [[ -f "$filepath" ]] ; then
+	if echo "$filepath" | grep -q "\.zip$" ; then
+		filepath=$(dirname "$filepath")
+	else
+		echo "ERROR: not a .zip file" >&2
+		exit 1
+	fi
+else
+	if ! [[ -d "$filepath" ]] ; then
+		echo "ERROR: incompatible file type" >&2
+		exit 1
+	fi
+fi
+
+zipfiles=$(find "$filepath" -type f -mindepth 1 -maxdepth 1 -name '*.zip' 2>/dev/null)
+if ! [[ $zipfiles ]] ; then
+	echo "ERROR: no zip files in directory" >&2
+	exit 1
+fi
+
+echo "Target: $filepath"
+
+while read -r zipfile
+do
+	zipname=$(basename "$zipfile")
+	if ! unzip -qq -o "$zipfile" -d "$filepath" &>/dev/null ; then
+		echo "ERROR: $zipname" >&2
+	else
+		echo "Success: $zipname"
+	fi
+done < <(echo "$zipfiles")
+
+rm -rf "$filepath/__MACOSX/" 2>/dev/null
+
+if ! command -v unrar &>/dev/null ; then
+	echo "Done"
+	exit
+fi
+
+rarfile=$(find "$filepath" -type f -mindepth 1 -maxdepth 1 -name '*.rar' 2>/dev/null)
+rfn=$(echo "$rarfile" | wc -l)
+if [[ $rfn -eq 0 ]] ; then
+	rarfile=$(find "$filepath" -type f -mindepth 1 -maxdepth 1 -name '*.part1.rar' 2>/dev/null)
+	rfn=$(echo "$rarfile" | wc -l)
+	if [[ $rfn -eq 0 ]] ; then
+		echo "Done"
+		exit
+	elif [[ $rfn -gt 1 ]]  ; then
+		echo "ECHO: too many .rar files" >&2
+		exit 1
+	fi
+elif [[ $rfn -gt 1 ]] ; then
+	rarfile=$(find "$filepath" -type f -mindepth 1 -maxdepth 1 -name '*.part1.rar' 2>/dev/null)
+	rfn=$(echo "$rarfile" | wc -l)
+	if [[ $rfn -eq 0 ]] ; then
+		echo "ERROR: too many .rar files" >&2
+		exit 1
+	elif [[ $rfn -gt 1 ]] ; then
+		echo "ERROR: too many .rar files" >&2
+		exit 1
+	fi
+fi
+
+rarname=$(basename "$rarfile")
+if ! unrar x -o+ "$rarfile" "$filepath" -idq &>/dev/null ; then
+	echo "ERROR: $rarname" >&2
+	exit 1
+else
+	echo "Succes: $rarname"
+fi
+
+echo "Done"
+exit

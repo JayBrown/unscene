@@ -1,0 +1,14 @@
+unscene
+
+Quickly unpack & expand old-school scene releases that are distributed as zipped rar segments
+
+Input files need to be a zip file or a directory containing zip files.
+
+If you have installed unrar, unscene will also expand the unzipped rar segments.
+
+USAGE
+	unscene <filepath>
+
+INSTALLATION
+	Drop or symlink into one of your bin directories
+	Or install the Finder QuickAction
